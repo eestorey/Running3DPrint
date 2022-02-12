@@ -7,6 +7,7 @@ from shapely.geometry import LineString, Polygon, MultiLineString
 import shapely.ops as so
 from shapely.ops import snap
 from shapely.ops import unary_union
+from shapely import geometry, ops
 from centerline.geometry import Centerline
 
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
@@ -60,26 +61,36 @@ else:
 
     centerline = Centerline(route_unions_eroded, interpolation_distance=INTERPOLATION_DISTANCE)
 
-    for cl_segment in list(centerline.geoms):
-        xs, ys = cl_segment.xy
-        plt.plot(xs, ys, 'r')
+    # for cl_segment in list(centerline.geoms):
+    #     xs, ys = cl_segment.xy
+    #     plt.plot(xs, ys, linewidth=5) # make it thicker too
 
     # this didn't work very well at all. 
     # result = snap(routes[0], centerline, OFFSET_DISTANCE)
     # xi, yi = result.xy
     # plt.plot(xi, yi, 'lime')
 
+    merged_centerline = ops.linemerge(centerline)
+    for ml_segment in list(merged_centerline.geoms):
+        xl, yl = ml_segment.xy
+        plt.plot(xl, yl, linewidth=5)
+
+    
+
 plt.show()
 
 
+# What I have now is a bunch of 'branches' that are their own linestrings. 
+# I think the next point is to gather a list of all coordinates in all the 
+# linestrings and determine which ones are a member of more than one. 
+# Those are the intersection points. 
+
+# From those intersection points, determine the 'closest' coordinate points on the boundary layer
+# by looking radially. (find diff btwn point, vector, look for min)
+
+# get the coordinates. for the first 'intersection', plot the difference vector.
 
 
-
-
-# Things are working okay for now. What I want to do next is to join the linestrings that make up the centerlines into different linestrings between each intersection. 
-# And also want to smooth the linestrings. They are jagged. 
-# this will help smooth 
-# https://gis.stackexchange.com/questions/231233/create-smooth-line-from-zigzag-line
 
 
 
