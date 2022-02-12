@@ -102,14 +102,27 @@ for line in lines_to_keep_merged:
 common_points = list(set([pt for pt in merged_line_extents if merged_line_extents.count(pt) > 1]))
 plt.plot(*zip(*common_points),'ob')
 
+list_of_all_points_in_dilated = np.array(route_unions_dilated.exterior.coords)
 
-plt.show()
+for hole in route_unions_dilated.interiors :
+    coords = np.array(hole.coords)
+    list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
+
+plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
+
+
+# what if i did... find me the closest from each exterior/interior. Only consider the closest N interiors though. Must have distance lower than some value. 
+# for exterior and each interior, return nearest point. If distance to point < VALUE, keep, otherwise, throw it away. 
+
 
 
 # common_intersection points, determine the 'closest' coordinate points on the boundary
 # by looking radially. (find diff btwn point, vector, look for min)
 
 # get the coordinates. for the first 'intersection', plot the difference vector.
+
+
+
 
 
 
