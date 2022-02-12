@@ -26,8 +26,8 @@ for gpx_file in os.listdir(GPX_DIRECTORY):
     longitude_latitude_tuples = [tuple(x) for x in df[["longitude", "latitude"]].values]
 
     line = LineString(longitude_latitude_tuples)
-    xl, yl = line.xy
-    plt.plot(xl, yl, 'gray')
+    x, y = line.xy
+    plt.plot(x, y, 'gray')
 
     dilated = line.buffer(OFFSET_DISTANCE)
 
@@ -39,17 +39,17 @@ route_unions_eroded = route_unions_dilated.buffer(-0.75*OFFSET_DISTANCE)
 
 if route_unions_dilated.type == 'MultiPolygon':
     for geom in route_unions_dilated.geoms:
-        xo, yo = geom.exterior.xy
-        # plt.plot(xo, yo, "cornflowerblue")
+        x, y = geom.exterior.xy
+        # plt.plot(x, y, "cornflowerblue")
         for interior in geom.interiors:
             xi,yi = interior.xy
             plt.plot(xi, yi, "cornflowerblue")
 else:
-    xo, yo = route_unions_dilated.exterior.xy
-    plt.fill(xo, yo, "cornflowerblue")
+    x, y = route_unions_dilated.exterior.xy
+    plt.fill(x, y, "cornflowerblue")
 
-    xo, yo = route_unions_eroded.exterior.xy
-    plt.fill(xo, yo, "white")
+    x, y = route_unions_eroded.exterior.xy
+    plt.fill(x, y, "white")
 
     for interior in route_unions_eroded.interiors:
         xi,yi = interior.xy
@@ -61,31 +61,52 @@ else:
 
     centerline = Centerline(route_unions_eroded, interpolation_distance=INTERPOLATION_DISTANCE)
 
-    # for cl_segment in list(centerline.geoms):
-    #     xs, ys = cl_segment.xy
-    #     plt.plot(xs, ys, linewidth=5) # make it thicker too
-
-    # this didn't work very well at all. 
-    # result = snap(routes[0], centerline, OFFSET_DISTANCE)
-    # xi, yi = result.xy
-    # plt.plot(xi, yi, 'lime')
-
     merged_centerline = ops.linemerge(centerline)
+    line_extents = []
+    line_lengths = []
     for ml_segment in list(merged_centerline.geoms):
-        xl, yl = ml_segment.xy
-        plt.plot(xl, yl, linewidth=5)
+        x, y = ml_segment.xy
 
-    
+        line_extents.append((x[0], y[0]))
+        line_extents.append((x[-1], y[-1]))
+        line_lengths.append(ml_segment.length)
+
+# Once have all the line segment, filter out the ones whose extents are not both in the common_points list. 
+# These are the branches. From the branches, delete ones with length < SHORT_LINE_CUTOFF.
+
+SHORT_LINE_CUTOFF = OFFSET_DISTANCE / 2
+lines_under_length = [line for line in list(merged_centerline.geoms) if line.length < SHORT_LINE_CUTOFF]
+
+common_points = list(set([pt for pt in line_extents if line_extents.count(pt) > 1]))
+uncommon_points = list(set([pt for pt in line_extents if line_extents.count(pt) == 1]))
+
+lines_short_branches = []
+for line in lines_under_length:
+    x, y = line.xy
+
+    if ((x[0], y[0]) in uncommon_points) or ((x[-1], y[-1]) in uncommon_points) :
+        lines_short_branches.append(line)
+
+lines_to_keep = [line for line in list(merged_centerline.geoms) if line not in lines_short_branches]
+lines_to_keep_merged = ops.linemerge(lines_to_keep)
+
+merged_line_extents = []
+for line in lines_to_keep_merged:
+    x, y = line.xy
+    plt.plot(x, y, linewidth=3)
+
+    merged_line_extents.append((x[0], y[0]))
+    merged_line_extents.append((x[-1], y[-1]))
+
+# recalculate the common points
+common_points = list(set([pt for pt in merged_line_extents if merged_line_extents.count(pt) > 1]))
+plt.plot(*zip(*common_points),'ob')
+
 
 plt.show()
 
 
-# What I have now is a bunch of 'branches' that are their own linestrings. 
-# I think the next point is to gather a list of all coordinates in all the 
-# linestrings and determine which ones are a member of more than one. 
-# Those are the intersection points. 
-
-# From those intersection points, determine the 'closest' coordinate points on the boundary layer
+# common_intersection points, determine the 'closest' coordinate points on the boundary
 # by looking radially. (find diff btwn point, vector, look for min)
 
 # get the coordinates. for the first 'intersection', plot the difference vector.
@@ -97,16 +118,14 @@ plt.show()
 
 
 
+
+
+
+
+
 # below this is shitballing and ideas. 
 
 
-
-# Next step is to use the package 'centerlines'. 
-# then use normals to the midlines to bisect the regions?
-
-# Or hey what if I just took the entire polygon and made cells within it and then
-# tailor the cell size so that it captures common routes but also separates nearby
-# but parallel ones... and then count how many lines pass through each cell?
 
 # https://stackoverflow.com/questions/25656120/how-to-check-if-two-gps-routes-are-equals
 # https://stackoverflow.com/questions/68348779/given-a-polygon-line-in-it-find-position-on-line-where-to-split-the-polygon-w
@@ -128,3 +147,4 @@ plt.show()
 
 # https://www.youtube.com/watch?v=t6gGrv3vRoM 
 
+# I am going to have to find a way to deal with turnbacks.
