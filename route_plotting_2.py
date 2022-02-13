@@ -3,12 +3,13 @@ from gpx_converter import Converter
 import matplotlib.pyplot as plt
 import numpy as np
 # import shapely.geometry 
-from shapely.geometry import LineString, Polygon, MultiLineString
+from shapely.geometry import LineString, Polygon, MultiLineString, LinearRing
 import shapely.ops as so
 from shapely.ops import snap
 from shapely.ops import unary_union
 from shapely import geometry, ops
 from centerline.geometry import Centerline
+from scipy.signal import argrelextrema
 
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 #  .venv\scripts\activate
@@ -103,27 +104,50 @@ common_points = list(set([pt for pt in merged_line_extents if merged_line_extent
 plt.plot(*zip(*common_points),'ob')
 
 list_of_all_points_in_dilated = np.array(route_unions_dilated.exterior.coords)
-
 for hole in route_unions_dilated.interiors :
     coords = np.array(hole.coords)
     list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
 
 plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 
+# find the closest N values in list_of_all_points_in_dilated. Get the direction of the vector (from the common_point) 
+# and discard points whose values are within some pre-set angle from each other. 
+# or look in the difference vector and find N local minima. 
+list_of_intersection_rings = []
 
-# what if i did... find me the closest from each exterior/interior. Only consider the closest N interiors though. Must have distance lower than some value. 
-# for exterior and each interior, return nearest point. If distance to point < VALUE, keep, otherwise, throw it away. 
+for pt in common_points:
+    boundary_distance = list_of_all_points_in_dilated - pt
+    boundary_distance_absolute = np.sum(boundary_distance*boundary_distance, axis=1)
+
+    # aggregate 3 arrays, filter based on condition. 
+    point_array = np.c_[list_of_all_points_in_dilated, boundary_distance, boundary_distance_absolute]
+    closest_point_array = point_array[ point_array[:,4] < (4*OFFSET_DISTANCE)**2 ]
+
+    # get the indices of local minima
+    local_min = argrelextrema(closest_point_array[:,4], np.less)[0]
+    intersection_boundary = closest_point_array[ local_min, : ]
+    intersection_boundary_coords = intersection_boundary[ :, 0:2 ]
+
+    if intersection_boundary_coords.shape[0] > 2 :
+        intersection_boundary_ring = LinearRing(intersection_boundary_coords)
+
+        pts_to_centroid = intersection_boundary_coords - intersection_boundary_ring.centroid.coords[0]
+        angles_to_points = np.arctan2(pts_to_centroid[:,0], pts_to_centroid[:,1]) * 180 / np.pi
+
+        boundary_coords_sorted = intersection_boundary_coords[np.argsort(angles_to_points), :]
+        sorted_intersection_boundary_ring = LinearRing(boundary_coords_sorted)
+
+        list_of_intersection_rings.append(sorted_intersection_boundary_ring)
+        x, y = sorted_intersection_boundary_ring.xy
+        plt.plot(x, y, 'r')
 
 
 
-# common_intersection points, determine the 'closest' coordinate points on the boundary
-# by looking radially. (find diff btwn point, vector, look for min)
-
-# get the coordinates. for the first 'intersection', plot the difference vector.
+        # so what needs to happen is store all the linearrings and look for common points? or areas that overlap? then union of the points, make a new linearring in cw order.
+        # If it's weird going around corners or whatever that's okay, because I am only going to be concerned with the segments that cross a centerline. 
 
 
-
-
+plt.show()
 
 
 
