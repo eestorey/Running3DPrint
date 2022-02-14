@@ -134,6 +134,23 @@ for pt in common_points:
         pts_to_centroid = intersection_boundary_coords - intersection_boundary_ring.centroid.coords[0]
         angles_to_points = np.arctan2(pts_to_centroid[:,0], pts_to_centroid[:,1]) * 180 / np.pi
 
+        sorted_angles = np.sort(angles_to_points)
+        sorted_angle_deltas = np.diff(np.append(sorted_angles, sorted_angles[0]+360))
+
+        # Next step is to identify if any sorted_angle_deltas are below the cutoff. 
+        if min(abs(sorted_angle_deltas)) < 360/16:
+            # do something here... determine what the angle cutoff should be...
+            # how to keep the order...
+
+            # identify which points are below the threshold. Return the closest one. But what if I have multiple clusters? Eliminate them one at a time?
+            # If I have multiple clusters, look for groups of true. IE if abs(sorted_angle_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
+            # abs(sorted_angle_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
+
+
+            # This line is just here so I can set a breakpoint, although it could be useful to pre-sort the points. Then just need to eliminate a few indices and they are already in order. 
+            boundary_coords_sorted = intersection_boundary_coords[np.argsort(angles_to_points), :]
+
+
         boundary_coords_sorted = intersection_boundary_coords[np.argsort(angles_to_points), :]
         sorted_intersection_boundary_ring = LinearRing(boundary_coords_sorted)
 
