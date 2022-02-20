@@ -1,5 +1,4 @@
-import os
-from gpx_converter import Converter
+from pickle import TRUE
 import matplotlib.pyplot as plt
 import numpy as np
 # import shapely.geometry 
@@ -11,6 +10,9 @@ from shapely import geometry, ops
 from centerline.geometry import Centerline
 from scipy.signal import argrelextrema
 
+# Self-made function import let's see if this works. 
+import es_gpx
+
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 #  .venv\scripts\activate
 
@@ -18,47 +20,23 @@ GPX_DIRECTORY = 'Activities/Test Activities'
 OFFSET_DISTANCE = 0.0001 # this has to be calculated based on the canvas size and minimum nozzle. want each line to be at least 2 nozzle widths wide. 
 INTERPOLATION_DISTANCE = OFFSET_DISTANCE * 2/3
 
-routes = []
-routes_dilated = []
-routes_eroded = []
-
-for gpx_file in os.listdir(GPX_DIRECTORY):
-    df = Converter(input_file=os.path.join(GPX_DIRECTORY, gpx_file)).gpx_to_dataframe()
-    longitude_latitude_tuples = [tuple(x) for x in df[["longitude", "latitude"]].values]
-
-    line = LineString(longitude_latitude_tuples)
-    x, y = line.xy
-    plt.plot(x, y, 'gray')
-
-    dilated = line.buffer(OFFSET_DISTANCE)
-
-    routes.append(line)
-    routes_dilated.append(dilated)
-
-route_unions_dilated = unary_union(routes_dilated)
-route_unions_eroded = route_unions_dilated.buffer(-0.75*OFFSET_DISTANCE)
+[routes, route_unions_dilated, route_unions_eroded] = es_gpx.import_dilate(GPX_DIRECTORY, OFFSET_DISTANCE, True)
 
 if route_unions_dilated.type == 'MultiPolygon':
     for geom in route_unions_dilated.geoms:
-        x, y = geom.exterior.xy
-        # plt.plot(x, y, "cornflowerblue")
-        for interior in geom.interiors:
-            xi,yi = interior.xy
-            plt.plot(xi, yi, "cornflowerblue")
-else:
-    x, y = route_unions_dilated.exterior.xy
-    plt.fill(x, y, "cornflowerblue")
+        es_gpx.plot_exterior(geom, "cornflowerblue")
 
-    x, y = route_unions_eroded.exterior.xy
-    plt.fill(x, y, "white")
+        for interior in geom.interiors:
+            es_gpx.plot_interior(interior, "cornflowerblue")
+else:
+    es_gpx.plot_exterior(route_unions_dilated, "cornflowerblue")
+    es_gpx.plot_exterior(route_unions_eroded, "white")
 
     for interior in route_unions_eroded.interiors:
-        xi,yi = interior.xy
-        plt.fill(xi, yi, "cornflowerblue")
+        es_gpx.plot_interior(interior, "cornflowerblue")
 
     for interior in route_unions_dilated.interiors:
-        xi,yi = interior.xy
-        plt.fill(xi, yi, "white")
+        es_gpx.plot_interior(interior, "white")
 
     centerline = Centerline(route_unions_eroded, interpolation_distance=INTERPOLATION_DISTANCE)
 
@@ -114,6 +92,7 @@ plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 # and discard points whose values are within some pre-set angle from each other. 
 # or look in the difference vector and find N local minima. 
 list_of_intersection_rings = []
+MINIMUM_ANGLE = 360/16
 
 for pt in common_points:
     boundary_distance = list_of_all_points_in_dilated - pt
@@ -131,27 +110,42 @@ for pt in common_points:
     if intersection_boundary_coords.shape[0] > 2 :
         intersection_boundary_ring = LinearRing(intersection_boundary_coords)
 
-        pts_to_centroid = intersection_boundary_coords - intersection_boundary_ring.centroid.coords[0]
-        angles_to_points = np.arctan2(pts_to_centroid[:,0], pts_to_centroid[:,1]) * 180 / np.pi
+        bnd_int_vectors = intersection_boundary[ :, 2:4]
+        bnd_int_angles = np.arctan2(bnd_int_vectors[:,0], bnd_int_vectors[:,1]) * 180 / np.pi
+        boundary_coords_sorted = intersection_boundary_coords[np.argsort(bnd_int_angles), :]
 
-        sorted_angles = np.sort(angles_to_points)
-        sorted_angle_deltas = np.diff(np.append(sorted_angles, sorted_angles[0]+360))
+        bnd_int_angles_sorted = np.sort(bnd_int_angles)
+        bnd_int_angles_sorted_deltas = np.diff(np.append(bnd_int_angles_sorted, bnd_int_angles_sorted[0]+360))
 
-        # Next step is to identify if any sorted_angle_deltas are below the cutoff. 
-        if min(abs(sorted_angle_deltas)) < 360/16:
-            # do something here... determine what the angle cutoff should be...
-            # how to keep the order...
+        # Next step is to identify if any bnd_int_angles_sorted_deltas are below the cutoff. 
+        if min(abs(bnd_int_angles_sorted_deltas)) < MINIMUM_ANGLE:
+            # minimum angle is not really set... just eyeballing. 
 
             # identify which points are below the threshold. Return the closest one. But what if I have multiple clusters? Eliminate them one at a time?
-            # If I have multiple clusters, look for groups of true. IE if abs(sorted_angle_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
-            # abs(sorted_angle_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
+            # If I have multiple clusters, look for groups of true. IE if abs(bnd_int_angles_sorted_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
+            # abs(bnd_int_angles_sorted_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
 
+            # Sort the vectors pointing to the intersection and find their magnitudes.
+            bnd_int_vectors_sorted = bnd_int_vectors[np.argsort(bnd_int_angles), :]
+            bnd_int_vectors_sorted_magnitude = np.linalg.norm(bnd_int_vectors_sorted, axis = 1)
 
-            # This line is just here so I can set a breakpoint, although it could be useful to pre-sort the points. Then just need to eliminate a few indices and they are already in order. 
-            boundary_coords_sorted = intersection_boundary_coords[np.argsort(angles_to_points), :]
+            # Sort the angles and deltas in reverse order as well to capture both indices that are within MINIMUM_ANGLE from each other
+            bnd_int_angles_sorted_reverse = bnd_int_angles_sorted[::-1]
+            bnd_int_angles_sorted_reverse_deltas = np.diff(np.append(bnd_int_angles_sorted_reverse, bnd_int_angles_sorted_reverse[0]+360))
 
+            # Get logical mask vectors
+            mask_forward = abs(bnd_int_angles_sorted_deltas) < MINIMUM_ANGLE
+            mask_backward = abs(bnd_int_angles_sorted_reverse_deltas[::-1]) < MINIMUM_ANGLE
+            mask = np.logical_or(mask_forward, mask_backward)
 
-        boundary_coords_sorted = intersection_boundary_coords[np.argsort(angles_to_points), :]
+            # Use the mask to find index of maximum magnitude that is within MINIMUM_ANGLE from another. 
+            idx_furthest = np.argwhere(bnd_int_vectors_sorted_magnitude == max(bnd_int_vectors_sorted_magnitude[mask]))
+
+            # Remove the index from the boundary array. Then re-create the angles and deltas 
+            boundary_coords_sorted = np.delete(boundary_coords_sorted, idx_furthest, 0)
+            # bnd_int_angles_sorted = np.delete(bnd_int_angles_sorted, idx_furthest, 0)
+            # bnd_int_angles_sorted_deltas = np.delete(bnd_int_angles_sorted_deltas, idx_furthest, 0)
+
         sorted_intersection_boundary_ring = LinearRing(boundary_coords_sorted)
 
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
