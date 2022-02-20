@@ -7,7 +7,6 @@ import shapely.ops as so
 from shapely.ops import snap
 from shapely.ops import unary_union
 from shapely import geometry, ops
-from centerline.geometry import Centerline
 from scipy.signal import argrelextrema
 
 # Self-made function import let's see if this works. 
@@ -38,17 +37,8 @@ else:
     for interior in route_unions_dilated.interiors:
         es_gpx.plot_interior(interior, "white")
 
-    centerline = Centerline(route_unions_eroded, interpolation_distance=INTERPOLATION_DISTANCE)
-
-    merged_centerline = ops.linemerge(centerline)
-    line_extents = []
-    line_lengths = []
-    for ml_segment in list(merged_centerline.geoms):
-        x, y = ml_segment.xy
-
-        line_extents.append((x[0], y[0]))
-        line_extents.append((x[-1], y[-1]))
-        line_lengths.append(ml_segment.length)
+    merged_centerline = es_gpx.cl_merge(route_unions_eroded, INTERPOLATION_DISTANCE)
+    [cl_extents, cl_lengths] = es_gpx.cl_lengths_extents(merged_centerline)
 
 # Once have all the line segment, filter out the ones whose extents are not both in the common_points list. 
 # These are the branches. From the branches, delete ones with length < SHORT_LINE_CUTOFF.
