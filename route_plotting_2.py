@@ -1,16 +1,17 @@
-from pickle import TRUE
+# from pickle import TRUE
 import matplotlib.pyplot as plt
 import numpy as np
 # import shapely.geometry 
 from shapely.geometry import LineString, Polygon, MultiLineString, LinearRing
-import shapely.ops as so
-from shapely.ops import snap
-from shapely.ops import unary_union
-from shapely import geometry, ops
-from scipy.signal import argrelextrema
+# import shapely.ops as so
+# from shapely.ops import snap
+# from shapely.ops import unary_union
+# from shapely import geometry, ops
+# from scipy.signal import argrelextrema
 
 # Self-made function import let's see if this works. 
-import es_gpx
+import es_gpx, es_intersects
+
 
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 #  .venv\scripts\activate
@@ -44,20 +45,10 @@ else:
 # These are the branches. From the branches, delete ones with length < SHORT_LINE_CUTOFF.
 
 SHORT_LINE_CUTOFF = OFFSET_DISTANCE / 2
-lines_under_length = [line for line in list(merged_centerline.geoms) if line.length < SHORT_LINE_CUTOFF]
 
-common_points = list(set([pt for pt in line_extents if line_extents.count(pt) > 1]))
-uncommon_points = list(set([pt for pt in line_extents if line_extents.count(pt) == 1]))
+[common_points, uncommon_points] = es_gpx.commonality(cl_extents)
+lines_to_keep_merged = es_gpx.remove_shortest_branches(merged_centerline, SHORT_LINE_CUTOFF, uncommon_points)
 
-lines_short_branches = []
-for line in lines_under_length:
-    x, y = line.xy
-
-    if ((x[0], y[0]) in uncommon_points) or ((x[-1], y[-1]) in uncommon_points) :
-        lines_short_branches.append(line)
-
-lines_to_keep = [line for line in list(merged_centerline.geoms) if line not in lines_short_branches]
-lines_to_keep_merged = ops.linemerge(lines_to_keep)
 
 merged_line_extents = []
 for line in lines_to_keep_merged:
@@ -68,8 +59,7 @@ for line in lines_to_keep_merged:
     merged_line_extents.append((x[-1], y[-1]))
 
 # recalculate the common points
-common_points = list(set([pt for pt in merged_line_extents if merged_line_extents.count(pt) > 1]))
-plt.plot(*zip(*common_points),'ob')
+[common_points, uncommon_points] = es_gpx.commonality(merged_line_extents, True)
 
 list_of_all_points_in_dilated = np.array(route_unions_dilated.exterior.coords)
 for hole in route_unions_dilated.interiors :
@@ -82,61 +72,41 @@ plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 # and discard points whose values are within some pre-set angle from each other. 
 # or look in the difference vector and find N local minima. 
 list_of_intersection_rings = []
-MINIMUM_ANGLE = 360/16
+MINIMUM_ANGLE = 360/16 # this number is not set at all just eyeballing. 
+MAX_INTERSECTION_DISTANCE = (4*OFFSET_DISTANCE)**2
 
 for pt in common_points:
-    boundary_distance = list_of_all_points_in_dilated - pt
-    boundary_distance_absolute = np.sum(boundary_distance*boundary_distance, axis=1)
 
-    # aggregate 3 arrays, filter based on condition. 
-    point_array = np.c_[list_of_all_points_in_dilated, boundary_distance, boundary_distance_absolute]
-    closest_point_array = point_array[ point_array[:,4] < (4*OFFSET_DISTANCE)**2 ]
+    intersection_boundary = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
+    bi_coords = intersection_boundary[ :, 0:2 ]
 
-    # get the indices of local minima
-    local_min = argrelextrema(closest_point_array[:,4], np.less)[0]
-    intersection_boundary = closest_point_array[ local_min, : ]
-    intersection_boundary_coords = intersection_boundary[ :, 0:2 ]
+    if bi_coords.shape[0] > 2 :
 
-    if intersection_boundary_coords.shape[0] > 2 :
-        intersection_boundary_ring = LinearRing(intersection_boundary_coords)
+        [sorted_vectors, sorted_angles] = es_intersects.vectors_angles(intersection_boundary[ :, 2:4])
+        [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, sorted_angles)
 
-        bnd_int_vectors = intersection_boundary[ :, 2:4]
-        bnd_int_angles = np.arctan2(bnd_int_vectors[:,0], bnd_int_vectors[:,1]) * 180 / np.pi
-        boundary_coords_sorted = intersection_boundary_coords[np.argsort(bnd_int_angles), :]
-
-        bnd_int_angles_sorted = np.sort(bnd_int_angles)
-        bnd_int_angles_sorted_deltas = np.diff(np.append(bnd_int_angles_sorted, bnd_int_angles_sorted[0]+360))
-
-        # Next step is to identify if any bnd_int_angles_sorted_deltas are below the cutoff. 
-        if min(abs(bnd_int_angles_sorted_deltas)) < MINIMUM_ANGLE:
-            # minimum angle is not really set... just eyeballing. 
+        # Next step is to identify if any sorted_deltas are below the cutoff. 
+        if min(abs(sorted_deltas)) < MINIMUM_ANGLE:
 
             # identify which points are below the threshold. Return the closest one. But what if I have multiple clusters? Eliminate them one at a time?
-            # If I have multiple clusters, look for groups of true. IE if abs(bnd_int_angles_sorted_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
-            # abs(bnd_int_angles_sorted_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
+            # If I have multiple clusters, look for groups of true. IE if abs(sorted_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
+            # abs(sorted_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
 
-            # Sort the vectors pointing to the intersection and find their magnitudes.
-            bnd_int_vectors_sorted = bnd_int_vectors[np.argsort(bnd_int_angles), :]
-            bnd_int_vectors_sorted_magnitude = np.linalg.norm(bnd_int_vectors_sorted, axis = 1)
+            [sorted_coords, sorted_angles, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, sorted_angles, sorted_vectors)
 
-            # Sort the angles and deltas in reverse order as well to capture both indices that are within MINIMUM_ANGLE from each other
-            bnd_int_angles_sorted_reverse = bnd_int_angles_sorted[::-1]
-            bnd_int_angles_sorted_reverse_deltas = np.diff(np.append(bnd_int_angles_sorted_reverse, bnd_int_angles_sorted_reverse[0]+360))
 
-            # Get logical mask vectors
-            mask_forward = abs(bnd_int_angles_sorted_deltas) < MINIMUM_ANGLE
-            mask_backward = abs(bnd_int_angles_sorted_reverse_deltas[::-1]) < MINIMUM_ANGLE
-            mask = np.logical_or(mask_forward, mask_backward)
-
-            # Use the mask to find index of maximum magnitude that is within MINIMUM_ANGLE from another. 
-            idx_furthest = np.argwhere(bnd_int_vectors_sorted_magnitude == max(bnd_int_vectors_sorted_magnitude[mask]))
+            # filter for small angle deltas and find furthest pt. Remove it. 
+            mask = es_intersects.mask_for_small_angles(sorted_angles, sorted_deltas, MINIMUM_ANGLE)
+            idx_furthest = np.argwhere(sorted_magnitude == max(sorted_magnitude[mask]))
 
             # Remove the index from the boundary array. Then re-create the angles and deltas 
-            boundary_coords_sorted = np.delete(boundary_coords_sorted, idx_furthest, 0)
-            # bnd_int_angles_sorted = np.delete(bnd_int_angles_sorted, idx_furthest, 0)
-            # bnd_int_angles_sorted_deltas = np.delete(bnd_int_angles_sorted_deltas, idx_furthest, 0)
+            sorted_coords = np.delete(sorted_coords, idx_furthest, 0)
+            sorted_vectors = np.delete(sorted_vectors, idx_furthest, 0)
+            sorted_angles = np.delete(sorted_angles, idx_furthest, 0)
 
-        sorted_intersection_boundary_ring = LinearRing(boundary_coords_sorted)
+            [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(sorted_coords, sorted_angles)
+
+        sorted_intersection_boundary_ring = LinearRing(sorted_coords)
 
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
         x, y = sorted_intersection_boundary_ring.xy

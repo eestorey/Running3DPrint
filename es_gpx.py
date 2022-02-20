@@ -69,4 +69,30 @@ def cl_lengths_extents(centerline):
 
     return (line_extents, line_lengths)
 
+def commonality(extents, plot = False):
+    """ Is a centerline point member to only one line? """
+    common = list(set([pt for pt in extents if extents.count(pt) > 1]))
+    uncommon = list(set([pt for pt in extents if extents.count(pt) == 1]))
+
+    plt.plot(*zip(*common),'ob')
+    plt.plot(*zip(*uncommon),'or')
+
+    return (common, uncommon)
+
+def remove_shortest_branches(centerline, cutoff, uncommon):
+    """ Remove any line which is very short and only has one 'common' branch extent """
+
+    shortest_lines = [line for line in list(centerline.geoms) if line.length < cutoff]
+   
+    shortest_branches = []
+    for line in shortest_lines:
+        x, y = line.xy
+
+        if ((x[0], y[0]) in uncommon) or ((x[-1], y[-1]) in uncommon) :
+            shortest_branches.append(line)
+
+    lines_to_keep = [line for line in list(centerline.geoms) if line not in shortest_branches]
+    lines_to_keep_merged = ops.linemerge(lines_to_keep)
+
+    return lines_to_keep_merged
 
