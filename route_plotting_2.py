@@ -82,31 +82,28 @@ for pt in common_points:
 
     if bi_coords.shape[0] > 2 :
 
-        [sorted_vectors, sorted_angles] = es_intersects.vectors_angles(intersection_boundary[ :, 2:4])
-        [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, sorted_angles)
+        [bi_vectors, bi_angles] = es_intersects.vectors_angles(intersection_boundary[ :, 2:4])
+        [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, bi_angles)
 
         # Next step is to identify if any sorted_deltas are below the cutoff. 
-        if min(abs(sorted_deltas)) < MINIMUM_ANGLE:
+        while min(abs(sorted_deltas)) < MINIMUM_ANGLE:
 
-            # identify which points are below the threshold. Return the closest one. But what if I have multiple clusters? Eliminate them one at a time?
-            # If I have multiple clusters, look for groups of true. IE if abs(sorted_deltas) < 360/16 --> [F T T F F F F T T T F] then I will need to do 2 clusters.
-            # abs(sorted_deltas) < 360/16 returns TRUE for the difference to the next index up. IE if it returns true in [1] then it is indices [1:2] that need to be checked. 
+            # identify which points are below the nearest-angle threshold. Delete the furthest one. 
+            [sorted_coords, sorted_angles, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, bi_angles, bi_vectors)
 
-            [sorted_coords, sorted_angles, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, sorted_angles, sorted_vectors)
-
-
-            # filter for small angle deltas and find furthest pt. Remove it. 
             mask = es_intersects.mask_for_small_angles(sorted_angles, sorted_deltas, MINIMUM_ANGLE)
             idx_furthest = np.argwhere(sorted_magnitude == max(sorted_magnitude[mask]))
 
             # Remove the index from the boundary array. Then re-create the angles and deltas 
             sorted_coords = np.delete(sorted_coords, idx_furthest, 0)
-            sorted_vectors = np.delete(sorted_vectors, idx_furthest, 0)
             sorted_angles = np.delete(sorted_angles, idx_furthest, 0)
-
             [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(sorted_coords, sorted_angles)
 
         sorted_intersection_boundary_ring = LinearRing(sorted_coords)
+
+        # next step to do is to find intersection rings that overlap in area. Take their union. 
+
+        
 
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
         x, y = sorted_intersection_boundary_ring.xy

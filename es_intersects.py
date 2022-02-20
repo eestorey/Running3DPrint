@@ -27,10 +27,10 @@ def vectors_angles(data_points):
     vectors = data_points
     angles = np.arctan2(vectors[:,0], vectors[:,1]) * 180 / np.pi
 
-    vectors_out = vectors[np.argsort(angles)]
-    angles_out = np.sort(angles)
+    # vectors_out = vectors[np.argsort(angles)]
+    # angles_out = np.sort(angles)
 
-    return (vectors_out, angles_out)
+    return (vectors, angles)
 
 def sort_by_angle(coords, angles, vectors):
     """ self explanatory """
