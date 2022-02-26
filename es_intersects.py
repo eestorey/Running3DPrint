@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.signal import argrelextrema
+from scipy.signal import argrelmin
 
 # Functions to find and split the polygon around intersection points. 
 
@@ -16,7 +16,7 @@ def locate_boundary(pt, boundary_pts, threshold):
     closest_point_array = point_array[ point_array[:,4] < threshold ]
 
     # get the indices of local minima
-    local_min = argrelextrema(closest_point_array[:,4], np.less)[0]
+    local_min = argrelmin(closest_point_array[:,4], mode='wrap', order=2)[0]
     intersection_boundary = closest_point_array[ local_min, : ]
 
     return intersection_boundary

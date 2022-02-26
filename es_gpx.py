@@ -39,7 +39,7 @@ def import_dilate(file_directory, offset_distance, plotting = False):
 def plot_exterior(region, color):
     """ Plot the exterior of a Polygon region """
     x, y = region.exterior.xy
-    plt.fill(x, y, color)
+    plt.plot(x, y, color)
 
 
 def plot_interior(interior, color):
