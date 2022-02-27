@@ -38,8 +38,7 @@ else:
     merged_centerline = es_gpx.cl_merge(route_unions_eroded, INTERPOLATION_DISTANCE)
     [cl_extents, cl_lengths] = es_gpx.cl_lengths_extents(merged_centerline)
 
-# Filter out lines whose extents are not both in the common_points list.
-# These are branches. Delete branches with length < SHORT_LINE_CUTOFF.
+# Find and delete short branches with length < SHORT_LINE_CUTOFF.
 SHORT_LINE_CUTOFF = OFFSET_DISTANCE / 2
 [common_points, uncommon_points] = es_gpx.commonality(cl_extents)
 lines_to_keep_merged = es_gpx.remove_shortest_branches(merged_centerline, SHORT_LINE_CUTOFF, uncommon_points)
@@ -114,19 +113,29 @@ for boundary in list_of_all_intersection_boundaries:
         boundaries_to_keep.append(boundary)
         plot_xy(boundary.coords, 'lime')
 
-
-# next step is to segment the outer boundary region according to the lines in boundaries_to_keep
-# route_unions_dilated is a polygon object
-
 boundary_segments = boundaries_to_keep
 boundary_segments.append(route_unions_dilated.boundary)
 boundary_limits = unary_union(boundary_segments)
 boundary_limits = linemerge(boundary_limits)
 
 split_boundaries = list(polygonize(boundary_limits))
-for boundary in split_boundaries:
-    es_gpx.plot_exterior(boundary, 'red')
+# for boundary in split_boundaries:
+#     es_gpx.plot_exterior(boundary, 'red')
 
+# generate an array 
+# col1 = individual linestrings from the intersections
+# col2 = number of individual gpx paths that linestring crosses. 
+# allows me to do a lookup (find lines at bndry of 1 road, crossing#s == ?)
+# routes is where all the gpx paths are stored.
+
+routes_linemerge = linemerge(routes)
+number_crossings = [es_intersects.gpx_crossings(routes_linemerge, boundary) for boundary in boundaries_to_keep]
+extents_crossings = np.c_[boundaries_to_keep, number_crossings]
+
+# issue i am having is that some of the boundary_extents are multilinestrings. so the crossings
+# that are getting returned are lines instead of points. 
+# next step is to sort out why some of the boundaries_to_keep are not single lines, they
+# should always be single lines.  
 
 plt.show()
 

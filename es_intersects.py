@@ -73,5 +73,16 @@ def coordinate_deltas(coords, angles):
 
     return (coords_out, delta_angles_out)
 
+def gpx_crossings(gpx_paths, boundary_extent):
+    """ How many times was the boundary of an intersection crossed by gpx paths? """
+    crossings = boundary_extent.intersection(gpx_paths)
 
+    if crossings.type == 'Point':
+        return 1
+    elif crossings.type == 'MultiPoint':
+        return len(list(crossings.geoms))
+    elif crossings.type == 'MultiLineString':
+        return crossings
+    else: 
+        return crossings
 
