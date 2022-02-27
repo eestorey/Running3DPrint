@@ -1,4 +1,4 @@
-# GPX route plotting, offsetting, and centerline functions. 
+# GPX route plotting, offsetting, and centerline functions.
 
 import os
 from gpx_converter import Converter
@@ -23,7 +23,7 @@ def import_dilate(file_directory, offset_distance, plotting = False):
 
         if plotting:
             x, y = line.xy
-            plt.plot(x, y, 'gray')
+            plt.plot(x, y, 'dimgrey')
 
         dilated = line.buffer(offset_distance)
 
@@ -31,7 +31,7 @@ def import_dilate(file_directory, offset_distance, plotting = False):
         routes_dilated.append(dilated)
 
     route_unions_dilated = unary_union(routes_dilated)
-    route_unions_eroded = route_unions_dilated.buffer(-0.75*offset_distance)  
+    route_unions_eroded = route_unions_dilated.buffer(-0.75*offset_distance)
 
     return [routes, route_unions_dilated, route_unions_eroded]
 
@@ -74,8 +74,9 @@ def commonality(extents, plot = False):
     common = list(set([pt for pt in extents if extents.count(pt) > 1]))
     uncommon = list(set([pt for pt in extents if extents.count(pt) == 1]))
 
-    plt.plot(*zip(*common),'ob')
-    plt.plot(*zip(*uncommon),'or')
+    if plot:
+        plt.plot(*zip(*common),'ob')
+        plt.plot(*zip(*uncommon),'or')
 
     return (common, uncommon)
 
@@ -83,7 +84,7 @@ def remove_shortest_branches(centerline, cutoff, uncommon):
     """ Remove any line which is very short and only has one 'common' branch extent """
 
     shortest_lines = [line for line in list(centerline.geoms) if line.length < cutoff]
-   
+
     shortest_branches = []
     for line in shortest_lines:
         x, y = line.xy
@@ -95,4 +96,3 @@ def remove_shortest_branches(centerline, cutoff, uncommon):
     lines_to_keep_merged = ops.linemerge(lines_to_keep)
 
     return lines_to_keep_merged
-
