@@ -107,20 +107,21 @@ for geom in intersection_polys_union.geoms:
         # plot_xy(segment.coords, 'magenta')
 
 # Filter list_of_all_intersection_boundaries for those that cross lines_to_keep_merged
-boundaries_to_keep = []
-for boundary in list_of_all_intersection_boundaries:
-    if lines_to_keep_merged.crosses(boundary):
-        boundaries_to_keep.append(boundary)
-        plot_xy(boundary.coords, 'lime')
+# boundaries_to_keep = []
+# for boundary in list_of_all_intersection_boundaries:
+#     if lines_to_keep_merged.crosses(boundary):
+#         boundaries_to_keep.append(boundary)
+#         plot_xy(boundary.coords, 'lime')
 
-boundary_segments = boundaries_to_keep
+boundaries_to_keep = [b for b in list_of_all_intersection_boundaries if lines_to_keep_merged.crosses(b)]
+
+boundary_segments = boundaries_to_keep.copy()
 boundary_segments.append(route_unions_dilated.boundary)
 boundary_limits = unary_union(boundary_segments)
 boundary_limits = linemerge(boundary_limits)
 
 split_boundaries = list(polygonize(boundary_limits))
-# for boundary in split_boundaries:
-#     es_gpx.plot_exterior(boundary, 'red')
+# for b in split_boundaries : es_gpx.plot_exterior(b, 'red')
 
 # generate an array 
 # col1 = individual linestrings from the intersections
@@ -132,10 +133,19 @@ routes_linemerge = linemerge(routes)
 number_crossings = [es_intersects.gpx_crossings(routes_linemerge, boundary) for boundary in boundaries_to_keep]
 extents_crossings = np.c_[boundaries_to_keep, number_crossings]
 
-# issue i am having is that some of the boundary_extents are multilinestrings. so the crossings
-# that are getting returned are lines instead of points. 
-# next step is to sort out why some of the boundaries_to_keep are not single lines, they
-# should always be single lines.  
+
+# next step... assign heights to each of split boundaries. Will need to determine if it is 
+# a simple line segment or an intersection... simple line segments will be coincident with
+# 2 lines in boundaries_to_keep. 
+
+wtf_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) == 0]
+simple_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) <= 2]
+compound_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) > 2]
+
+
+for r in simple_route_polys : es_gpx.plot_exterior(r, 'red')
+for r in compound_route_polys : es_gpx.plot_exterior(r, 'darkred')
+for r in wtf_route_polys : es_gpx.plot_exterior(r, 'yellow')
 
 plt.show()
 

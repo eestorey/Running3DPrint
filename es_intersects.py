@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import argrelmin
+from shapely.ops import linemerge
 
 # Functions to find and split the polygon around intersection points. 
 
@@ -75,14 +76,21 @@ def coordinate_deltas(coords, angles):
 
 def gpx_crossings(gpx_paths, boundary_extent):
     """ How many times was the boundary of an intersection crossed by gpx paths? """
-    crossings = boundary_extent.intersection(gpx_paths)
 
+    crossings = boundary_extent.intersection(gpx_paths)
     if crossings.type == 'Point':
         return 1
     elif crossings.type == 'MultiPoint':
         return len(list(crossings.geoms))
-    elif crossings.type == 'MultiLineString':
-        return crossings
     else: 
         return crossings
 
+def n_endpoints(poly, boundaries):
+    """ go away """
+    temp = poly.exterior.intersection(linemerge(boundaries))
+    if temp.type == 'LineString':
+        return 1
+    elif temp.type == 'MultiLineString':
+        return len(list(temp.geoms))
+    else:
+        return 0
