@@ -14,8 +14,7 @@ def plot_xy(geom, color):
     plt.plot(x, y, color)
 
 
-#  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-#  .venv\scripts\activate
+#  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process; .venv\scripts\activate
 
 GPX_DIRECTORY = 'Activities/Test Activities'
 OFFSET_DISTANCE = 0.0001 # this has to be calculated. want each line to be at least 2 nozzle widths wide.
@@ -139,17 +138,19 @@ extents_crossings = np.c_[boundaries_to_keep, number_crossings]
 # 2 lines in boundaries_to_keep. 
 
 wtf_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) == 0]
-simple_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) <= 2]
+simple_route_polys = [poly for poly in split_boundaries if 1 <= es_intersects.n_endpoints(poly, boundaries_to_keep) <= 2]
 compound_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) > 2]
 
 
 for r in simple_route_polys : es_gpx.plot_exterior(r, 'red')
 for r in compound_route_polys : es_gpx.plot_exterior(r, 'darkred')
-for r in wtf_route_polys : es_gpx.plot_exterior(r, 'yellow')
 
 plt.show()
 
+# next step... how to actually check THIS poly boundary contains THAT boundary_crossing 
+# and so that means height at endpoint is WHATEVER. 
 
+# also... how do i go from poly to stl?
 
 
 # below this is shitballing and ideas. 
