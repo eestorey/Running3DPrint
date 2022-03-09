@@ -16,7 +16,7 @@ def plot_xy(geom, color):
 
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process; .venv\scripts\activate
 
-GPX_DIRECTORY = 'Activities/Test Activities'
+GPX_DIRECTORY = 'Activities/Richmond Hill'
 OFFSET_DISTANCE = 0.0001 # this has to be calculated. want each line to be at least 2 nozzle widths wide.
 INTERPOLATION_DISTANCE = OFFSET_DISTANCE * 2/3
 
@@ -78,6 +78,12 @@ for pt in common_points:
 
         # Next step is to identify if any sorted_deltas are below the cutoff.
         while min(abs(sorted_deltas)) < MINIMUM_ANGLE:
+            if len(np.where(sorted_deltas)) > 0:
+                print(sorted_deltas)
+
+            # SOMETHING IS WRONG SOMETIMES... IT IS GIVING TWO IDENTICAL ANGLES...
+
+
             # identify points below nearest-angle threshold. Delete the furthest one.
             [sorted_coords, sorted_angles, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, bi_angles, bi_vectors)
             mask = es_intersects.mask_for_small_angles(sorted_angles, sorted_deltas, MINIMUM_ANGLE)
@@ -142,7 +148,11 @@ simple_route_polys = [poly for poly in split_boundaries if 1 <= es_intersects.n_
 compound_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) > 2]
 
 
-for r in simple_route_polys : es_gpx.plot_exterior(r, 'red')
+for r in simple_route_polys : 
+    es_gpx.plot_exterior(r, 'red')
+    for i in r.interiors :
+        es_gpx.plot_interior(i, 'white')
+
 for r in compound_route_polys : es_gpx.plot_exterior(r, 'darkred')
 
 plt.show()
