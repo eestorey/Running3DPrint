@@ -59,7 +59,7 @@ for hole in route_unions_dilated.interiors :
     coords = np.array(hole.coords)
     list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
 
-list_of_all_points_in_dilated = np.unique(list_of_all_points_in_dilated, axis=0)
+# list_of_all_points_in_dilated = np.unique(list_of_all_points_in_dilated, axis=0)
 plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 
 # find the closest N values in list_of_all_points_in_dilated. Get the direction of the vector (from the common_point)
@@ -73,44 +73,20 @@ for pt in common_points:
 
     intersection_df = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
     
-    # if there are more than 2 coordinates here (ie it's not a line)
+    # while min(intersection_df['delta_angle_f'].values) < MINIMUM_ANGLE:
+    #     # identify points below nearest-angle threshold. Delete the furthest one.
+    #     intersection_df = es_intersects.drop_below_minima(intersection_df, MINIMUM_ANGLE)
+    #     intersection_df = es_intersects.get_delta_angles(intersection_df)
+
     if intersection_df.shape[0] > 2 :
-
-        # bi_coords = intersection_df[ :, 0:2 ]
-        # intersection_df = es_intersects.calculate_angles(intersection_df)
-        # [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, bi_angles)
-
-
-        # the issue I am having is that I am defining the coordinates, the vectors, the angles, and the delta angles... 
-        # and then deleting some but not all of them and it is duh causing issues. 
-
-        # make intersection_df a data frame and then I can name columns and sort by and delete rows as needed?
-
-
-        # THE NEXT STEP I HAVE TO DO IS TO MAKE ALL OF THE BELOW WORK WITH THE DF I CREATED IN
-        # LOCATE_BOUNDARY FUNCTION. 
-
-
-        # Next step is to identify if any sorted_deltas are below the cutoff.
-        while min(abs(sorted_deltas)) < MINIMUM_ANGLE:
-
-            # identify points below nearest-angle threshold. Delete the furthest one.
-            [bi_coords, bi_angles, bi_vectors, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, bi_angles, bi_vectors)
-            if sorted_angles.size != sorted_deltas.size :
-                print(sorted_angles)
-            
-            mask = es_intersects.mask_for_small_angles(sorted_angles, sorted_deltas, MINIMUM_ANGLE)
-            idx_furthest = np.argwhere(sorted_magnitude == max(sorted_magnitude[mask]))
-
-            bi_coords = np.delete(bi_coords, idx_furthest, 0)
-            bi_angles = np.delete(bi_angles, idx_furthest, 0)
-            bi_vectors = np.delete(bi_vectors, idx_furthest, 0)
-
-            [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(sorted_coords, sorted_angles)
-
+    # if there are more than 2 coordinates here (ie it's not a line)
+        sorted_coords = intersection_df[['boundary_pt_x','boundary_pt_y']].values
         sorted_intersection_boundary_ring = LinearRing(sorted_coords)
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
-        # plot_xy(sorted_intersection_boundary_ring.coords, 'r')
+        plot_xy(sorted_intersection_boundary_ring.coords, 'r')
+    else :
+        # idk... 
+        sorted_coords = intersection_df[['boundary_pt_x','boundary_pt_y']].values
 
 list_of_intersection_polys = []
 for ring in list_of_intersection_rings:

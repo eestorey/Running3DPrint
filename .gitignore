@@ -130,13 +130,13 @@ dmypy.json
 
 # Emily's stuff
 .vscode/
+*.png
+*.gpx
 2019_Run_Print_v1.stl
 Activities/
 Autocad/
-closest points to intersection.png
 code from last year.txt
 hello.py
 python testing.py
 route_plotting.py
-test.gpx
 test_files_for_plotting/
