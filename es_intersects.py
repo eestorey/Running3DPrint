@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy.signal import argrelmin
 from shapely.ops import linemerge
 
@@ -9,18 +10,15 @@ from shapely.ops import linemerge
 def locate_boundary(pt, boundary_pts, threshold):
     """ Pick out the nearest local minima from the distanced to all boundary pts """
 
-    distance_to_all = boundary_pts - pt
-    distance_to_all_absolute = np.sum(distance_to_all*distance_to_all, axis = 1)
+    distance_xy = boundary_pts - pt
+    distance_xy_absolute = np.sum(distance_xy*distance_xy, axis = 1)
  
-    # aggregate 3 arrays, filter based on condition. 
-    point_array = np.c_[boundary_pts, distance_to_all, distance_to_all_absolute]
-    closest_point_array = point_array[ point_array[:,4] < threshold ]
-
-    # get the indices of local minima
-    local_min = argrelmin(closest_point_array[:,4], mode='wrap', order=2)[0]
-    intersection_boundary = closest_point_array[ local_min, : ]
-
-    return intersection_boundary
+    df = pd.DataFrame(np.c_[boundary_pts, distance_xy, distance_xy_absolute],
+                      columns = ['boundary_pt_x', 'boundary_pt_y', 'delta_x', 'delta_y', 'distance'])
+    df = df[ df['distance']<threshold ]
+    local_min = argrelmin(df['distance'].values, mode='wrap', order=2)[0]
+    
+    return df.iloc[local_min]
 
 def vectors_angles(data_points):
     """ self explanatory """
@@ -41,7 +39,7 @@ def sort_by_angle(coords, angles, vectors):
     vectors_out = vectors[np.argsort(angles)]
     magnitude_out = np.linalg.norm(vectors_out, axis = 1)
 
-    return (coords_out, angles_out, magnitude_out)
+    return (coords_out, angles_out, vectors_out, magnitude_out)
 
 def mask_for_small_angles(angles, deltas, min_angle):
     """ filters adjacent angles for ones that are within a close distance """

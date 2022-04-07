@@ -1,6 +1,7 @@
 # from pickle import TRUE
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from shapely.geometry import LineString, Polygon, MultiLineString, LinearRing
 from shapely.ops import unary_union, split, linemerge, polygonize
 
@@ -58,6 +59,7 @@ for hole in route_unions_dilated.interiors :
     coords = np.array(hole.coords)
     list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
 
+list_of_all_points_in_dilated = np.unique(list_of_all_points_in_dilated, axis=0)
 plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 
 # find the closest N values in list_of_all_points_in_dilated. Get the direction of the vector (from the common_point)
@@ -69,28 +71,39 @@ MAX_INTERSECTION_DISTANCE = (4*OFFSET_DISTANCE)**2
 
 for pt in common_points:
 
-    intersection_boundary = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
-    bi_coords = intersection_boundary[ :, 0:2 ]
-    if bi_coords.shape[0] > 2 :
+    intersection_df = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
+    bi_coords = intersection_df[ :, 0:2 ]
+    
+    # if there are more than 2 coordinates here (ie it's not a line)
+    if intersection_df.shape[0] > 2 :
 
-        [bi_vectors, bi_angles] = es_intersects.vectors_angles(intersection_boundary[ :, 2:4])
+        [bi_vectors, bi_angles] = es_intersects.vectors_angles(intersection_df[ :, 2:4])
         [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, bi_angles)
+
+
+        # the issue I am having is that I am defining the coordinates, the vectors, the angles, and the delta angles... 
+        # and then deleting some but not all of them and it is duh causing issues. 
+
+        # make intersection_df a data frame and then I can name columns and sort by and delete rows as needed?
+
+
+
 
         # Next step is to identify if any sorted_deltas are below the cutoff.
         while min(abs(sorted_deltas)) < MINIMUM_ANGLE:
-            if len(np.where(sorted_deltas)) > 0:
-                print(sorted_deltas)
-
-            # SOMETHING IS WRONG SOMETIMES... IT IS GIVING TWO IDENTICAL ANGLES...
-
 
             # identify points below nearest-angle threshold. Delete the furthest one.
-            [sorted_coords, sorted_angles, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, bi_angles, bi_vectors)
+            [bi_coords, bi_angles, bi_vectors, sorted_magnitude] = es_intersects.sort_by_angle(bi_coords, bi_angles, bi_vectors)
+            if sorted_angles.size != sorted_deltas.size :
+                print(sorted_angles)
+            
             mask = es_intersects.mask_for_small_angles(sorted_angles, sorted_deltas, MINIMUM_ANGLE)
             idx_furthest = np.argwhere(sorted_magnitude == max(sorted_magnitude[mask]))
 
-            sorted_coords = np.delete(sorted_coords, idx_furthest, 0)
-            sorted_angles = np.delete(sorted_angles, idx_furthest, 0)
+            bi_coords = np.delete(bi_coords, idx_furthest, 0)
+            bi_angles = np.delete(bi_angles, idx_furthest, 0)
+            bi_vectors = np.delete(bi_vectors, idx_furthest, 0)
+
             [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(sorted_coords, sorted_angles)
 
         sorted_intersection_boundary_ring = LinearRing(sorted_coords)
