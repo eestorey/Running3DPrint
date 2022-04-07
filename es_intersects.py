@@ -10,26 +10,29 @@ from shapely.ops import linemerge
 def locate_boundary(pt, boundary_pts, threshold):
     """ Pick out the nearest local minima from the distanced to all boundary pts """
 
+    # calculate vector to boundary and distance
     distance_xy = boundary_pts - pt
     distance_xy_absolute = np.sum(distance_xy*distance_xy, axis = 1)
- 
+
+    # put values in df, filter by distance
     df = pd.DataFrame(np.c_[boundary_pts, distance_xy, distance_xy_absolute],
                       columns = ['boundary_pt_x', 'boundary_pt_y', 'delta_x', 'delta_y', 'distance'])
     df = df[ df['distance']<threshold ]
     local_min = argrelmin(df['distance'].values, mode='wrap', order=2)[0]
+    df = df.iloc[local_min]
+
+    # calculate and add vector angles plus delta angle
+    distance_xy = df[['delta_x','delta_y']].values
+    angles = np.arctan2(distance_xy[:,0], distance_xy[:,1]) * 180 / np.pi
+    df = df.assign(angle=angles).sort_values(by=['angle'])
+
+    # take this out and put it in another function. its value will change and
+    # i need to be able to call the function to recalculate deltas in other places.
     
-    return df.iloc[local_min]
+    # delta_angles = np.diff(np.append(angles, angles[0]+360))
+    # df = df.assign(angle=angles, delta_angle=delta_angles)
 
-def vectors_angles(data_points):
-    """ self explanatory """
-
-    vectors = data_points
-    angles = np.arctan2(vectors[:,0], vectors[:,1]) * 180 / np.pi
-
-    # vectors_out = vectors[np.argsort(angles)]
-    # angles_out = np.sort(angles)
-
-    return (vectors, angles)
+    return df.sort_values(by=['angle'])
 
 def sort_by_angle(coords, angles, vectors):
     """ self explanatory """

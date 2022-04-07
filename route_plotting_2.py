@@ -72,13 +72,13 @@ MAX_INTERSECTION_DISTANCE = (4*OFFSET_DISTANCE)**2
 for pt in common_points:
 
     intersection_df = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
-    bi_coords = intersection_df[ :, 0:2 ]
     
     # if there are more than 2 coordinates here (ie it's not a line)
     if intersection_df.shape[0] > 2 :
 
-        [bi_vectors, bi_angles] = es_intersects.vectors_angles(intersection_df[ :, 2:4])
-        [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, bi_angles)
+        # bi_coords = intersection_df[ :, 0:2 ]
+        # intersection_df = es_intersects.calculate_angles(intersection_df)
+        # [sorted_coords, sorted_deltas] = es_intersects.coordinate_deltas(bi_coords, bi_angles)
 
 
         # the issue I am having is that I am defining the coordinates, the vectors, the angles, and the delta angles... 
@@ -87,6 +87,8 @@ for pt in common_points:
         # make intersection_df a data frame and then I can name columns and sort by and delete rows as needed?
 
 
+        # THE NEXT STEP I HAVE TO DO IS TO MAKE ALL OF THE BELOW WORK WITH THE DF I CREATED IN
+        # LOCATE_BOUNDARY FUNCTION. 
 
 
         # Next step is to identify if any sorted_deltas are below the cutoff.
