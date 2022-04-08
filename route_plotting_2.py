@@ -1,10 +1,11 @@
 # from pickle import TRUE
 from pickle import FALSE, TRUE
 import matplotlib.pyplot as plt
+import matplotlib.colors
 import numpy as np
 import pandas as pd
-from shapely.geometry import LineString, Polygon, MultiLineString, LinearRing
-from shapely.ops import unary_union, split, linemerge, polygonize
+from shapely.geometry import LineString, Polygon, LinearRing # , MultiLineString
+from shapely.ops import unary_union, linemerge, polygonize #, split
 
 # Self-made function import let's see if this works.
 import es_gpx
@@ -19,33 +20,33 @@ def plot_xy(geom, color):
 #  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process; .venv\scripts\activate
 
 GPX_DIRECTORY = 'Activities/Richmond Hill'
-OFFSET_DISTANCE = 0.0001 # this has to be calculated. want each line to be at least 2 nozzle widths wide.
+OFFSET_DISTANCE = 0.0001 # has to be calculated. want each line to be at least 2 nozzle widths wide.
 INTERPOLATION_DISTANCE = OFFSET_DISTANCE * 2/3
 
-[routes, route_unions_dilated, route_unions_eroded] = es_gpx.import_dilate(GPX_DIRECTORY, OFFSET_DISTANCE, True)
+[routes, rte_u_dilated, rte_u_eroded] = es_gpx.import_dilate(GPX_DIRECTORY, OFFSET_DISTANCE, True)
 
-if route_unions_dilated.type == 'MultiPolygon':
-    for geom in route_unions_dilated.geoms:
+if rte_u_dilated.type == 'MultiPolygon':
+    for geom in rte_u_dilated.geoms:
         es_gpx.plot_exterior(geom, "lightgrey")
 
         for interior in geom.interiors:
             es_gpx.plot_interior(interior, "lightgrey")
 else:
-    es_gpx.plot_exterior(route_unions_dilated, "lightgrey")
+    es_gpx.plot_exterior(rte_u_dilated, "lightgrey")
 
-    for interior in route_unions_dilated.interiors:
+    for interior in rte_u_dilated.interiors:
         es_gpx.plot_interior(interior, "white")
 
-    merged_centerline = es_gpx.cl_merge(route_unions_eroded, INTERPOLATION_DISTANCE)
+    merged_centerline = es_gpx.cl_merge(rte_u_eroded, INTERPOLATION_DISTANCE)
     [cl_extents, cl_lengths] = es_gpx.cl_lengths_extents(merged_centerline)
 
 # Find and delete short branches with length < SHORT_LINE_CUTOFF.
 SHORT_LINE_CUTOFF = OFFSET_DISTANCE / 2
 [common_points, uncommon_points] = es_gpx.commonality(cl_extents)
-lines_to_keep_merged = es_gpx.remove_shortest_branches(merged_centerline, SHORT_LINE_CUTOFF, uncommon_points)
+lines_to_keep = es_gpx.remove_shortest_branches(merged_centerline, SHORT_LINE_CUTOFF, uncommon_points)
 
 merged_line_extents = []
-for line in lines_to_keep_merged:
+for line in lines_to_keep:
     x, y = line.xy
     plt.plot(x, y, linewidth=3)
 
@@ -55,8 +56,8 @@ for line in lines_to_keep_merged:
 # recalculate the common points
 [common_points, uncommon_points] = es_gpx.commonality(merged_line_extents, True)
 
-list_of_all_points_in_dilated = np.array(route_unions_dilated.exterior.coords)
-for hole in route_unions_dilated.interiors :
+list_of_all_points_in_dilated = np.array(rte_u_dilated.exterior.coords)
+for hole in rte_u_dilated.interiors :
     coords = np.array(hole.coords)
     list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
 
@@ -66,6 +67,7 @@ plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 # find the closest N values in list_of_all_points_in_dilated. Get the direction of the vector (from the common_point)
 # and discard points whose values are within some pre-set angle from each other.
 # or look in the difference vector and find N local minima.
+
 list_of_intersection_rings = []
 MINIMUM_ANGLE = 360/10 # this number is not set at all just eyeballing.
 MAX_INTERSECTION_DISTANCE = 2*OFFSET_DISTANCE
@@ -80,14 +82,14 @@ for pt in common_points:
 
     if intersection_df.shape[0] <= 2 :
         # plot it if it is a line, in green, so I can spot it.
-        plt.plot(intersection_df.boundary_pt_x.values, 
+        plt.plot(intersection_df.boundary_pt_x.values,
                  intersection_df.boundary_pt_y.values, 'lime')
     else :
         # if there are more than 2 coordinates here (ie it's not a line)
         sorted_coords = intersection_df[['boundary_pt_x','boundary_pt_y']].values
         sorted_intersection_boundary_ring = LinearRing(sorted_coords)
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
-        plot_xy(sorted_intersection_boundary_ring.coords, 'r')
+        # plot_xy(sorted_intersection_boundary_ring.coords, 'r')
 
 list_of_intersection_polys = []
 for ring in list_of_intersection_rings:
@@ -99,7 +101,7 @@ intersection_polys_union = unary_union(list_of_intersection_polys)
 corrected_poly_unions = []
 dilated_coord_set = set([tuple(x) for x in list_of_all_points_in_dilated])
 
-for poly in intersection_polys_union :
+for poly in intersection_polys_union.geoms :
     # find points that are in common beetween each intersection and the boundary.
     # make a new poly 
 
@@ -116,20 +118,20 @@ for poly in intersection_polys_union :
     coords = list([tuple(x) for x in df[['bp_x','bp_y']].values])
     corrected_poly_unions.append(Polygon(coords))
 
-list_of_all_intersection_boundaries = []
+all_intersection_boundaries = []
 for poly in corrected_poly_unions:
     segments = list(map(LineString, zip(poly.exterior.coords[:-1], poly.exterior.coords[1:])))
     for segment in segments:
-        list_of_all_intersection_boundaries.append(segment)
+        all_intersection_boundaries.append(segment)
         # plot_xy(segment.coords, 'magenta')
 
-boundaries_to_keep = [b for b in list_of_all_intersection_boundaries if lines_to_keep_merged.crosses(b)]
+boundaries_to_keep = [b for b in all_intersection_boundaries if lines_to_keep.crosses(b)]
 for b in boundaries_to_keep : plot_xy(b, 'magenta')
 
 # I think what I am trying to do here is to find the points in common with intersection lines that
 # cross a centerline
 boundary_segments = boundaries_to_keep.copy()
-boundary_segments.append(route_unions_dilated.boundary)
+boundary_segments.append(rte_u_dilated.boundary)
 boundary_limits = unary_union(boundary_segments)
 boundary_limits = linemerge(boundary_limits)
 
@@ -138,34 +140,70 @@ for b in split_boundaries :
     x,y = b.exterior.xy
     plt.fill(x,y)
 
-# ESSENTIALLY DONE UP TO HERE... THE REGIONS ARE MOSTLY BEING SEPARATED OKAY, NEED TO ASSIGN
-# HEIGHTS AND ALSO REMOVE THE ONES THAT ARE 'INTERIORS' (WILL NOT BE COINCIDENT WITH ANY OF THE 
-# INTERSECTION BOUNDARIES).
-
-routes_linemerge = linemerge(routes)
-number_crossings = [es_intersects.gpx_crossings(routes_linemerge, boundary) for boundary in boundaries_to_keep]
-extents_crossings = np.c_[boundaries_to_keep, number_crossings]
+number_crossings = [es_intersects.gpx_crossings(linemerge(routes), b) for b in boundaries_to_keep]
+gpx_crossing_df = pd.DataFrame(np.c_[boundaries_to_keep, number_crossings], 
+                               columns = ['linestring', 'n_crossings'])
 
 # next step... assign heights to each of split boundaries. Will need to determine if it is 
 # a simple line segment or an intersection... simple line segments will be coincident with
 # 2 lines in boundaries_to_keep. 
 
-wtf_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) == 0]
-simple_route_polys = [poly for poly in split_boundaries if 1 <= es_intersects.n_endpoints(poly, boundaries_to_keep) <= 2]
-compound_route_polys = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) > 2]
+polys_not_rtes = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) == 0]
+polys_simple = [poly for poly in split_boundaries if 1 <= es_intersects.n_endpoints(poly, boundaries_to_keep) <= 2]
+polys_compound = [poly for poly in split_boundaries if es_intersects.n_endpoints(poly, boundaries_to_keep) > 2]
 
-
-for r in simple_route_polys : 
-    es_gpx.plot_exterior(r, 'red')
+for r in polys_not_rtes: es_gpx.plot_exterior(r, 'white')
+for r in polys_simple :
+    x,y = r.exterior.xy
+    plt.fill(x,y)
     for i in r.interiors :
         es_gpx.plot_interior(i, 'white')
+for r in polys_compound : es_gpx.plot_exterior(r, 'darkred')
 
-for r in compound_route_polys : es_gpx.plot_exterior(r, 'darkred')
+
+# polys_simple is the route sections that have coincident boundaries with 1 or 2 intersections. 
+# for each poly, check how many gpx crossings there are at each boundary. 
+# this requires looking up intersection of the poly's exterior with 
+poly_simple_df = pd.DataFrame(polys_simple, columns = ['polygons'])
+
+height_values = []
+for poly in polys_simple :
+    # this gives me a boolean of the lines that are part of poly's exterior (location in df)
+    which_linestrings = [poly.exterior.contains(l) for l in gpx_crossing_df.linestring.values]
+
+    heights = gpx_crossing_df.n_crossings.values[which_linestrings]
+    if np.unique(heights).size == 1 :
+        # both edges of the poly have the same number of crossings, so it is good to assign.
+        height_values.append(np.unique(heights)[0])
+    else:
+        height_values.append(100)
+
+poly_simple_df = poly_simple_df.assign(height = height_values)
+
+cmap = plt.cm.jet
+norm = matplotlib.colors.Normalize(vmin=1, vmax=max(poly_simple_df.height.values))
+
+
+for p in range(poly_simple_df.shape[0]):
+    x,y = poly_simple_df.polygons[p].exterior.xy
+    plt.fill(x,y, color=cmap(norm(poly_simple_df.height[p])))
+
 
 plt.show()
 
-# next step... how to actually check THIS poly boundary contains THAT boundary_crossing 
-# and so that means height at endpoint is WHATEVER. 
+
+# I THINK ALL OF THE ABOVE WORKS. NEXT STEP IS TO CLEAN THINGS UP A BIT... TESTING IF IT STILL 
+# BEHAVES WHEN I INCLUDE ALL OF THE ROUTES. 
+
+# AFTER THAT, NEED TO DEAL WITH INTERSECTION HEIGHTS AND ALSO THE CASES WHERE I AM ASSIGNING HEIGHT VALUE
+# 100. THESE ARE CASES LIKE TURNBACKS OR WHERE THE INTERSECTION IS NOT SET PROPERLY. 
+
+# HOW I WANT TO DEAL WITH TURNBACKS IS TO SEPARATE A LONG LINE IN TWO THEN IN TWO AGAIN ETC
+# ------------ -> ------|------ -> ------|---|--- ETC ETC AND DETERMINE WHEN THE HEIGHTS ARE EQUAL. 
+# MAYBE SEE IF I CAN SPLIT THE POLY BOUNDARY AT THE INTERSECTION, THAT WILL/SHOULD LEAVE TWO 'TRACKS' OF
+# POINTS THAT i CAN THEN LOOK INTO AND SAY 'OK MIDPOINT TO MIDPOINT ON BOTH TRACKS SPLIT HERE'
+
+
 
 # also... how do i go from poly to stl?
 
