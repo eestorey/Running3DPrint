@@ -1,4 +1,5 @@
 # from pickle import TRUE
+from pickle import FALSE, TRUE
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -59,34 +60,34 @@ for hole in route_unions_dilated.interiors :
     coords = np.array(hole.coords)
     list_of_all_points_in_dilated = np.append(list_of_all_points_in_dilated, coords, axis=0)
 
-# list_of_all_points_in_dilated = np.unique(list_of_all_points_in_dilated, axis=0)
+list_of_all_points_in_dilated = np.unique(list_of_all_points_in_dilated, axis=0)
 plt.plot(*zip(*list_of_all_points_in_dilated),'.b')
 
 # find the closest N values in list_of_all_points_in_dilated. Get the direction of the vector (from the common_point)
 # and discard points whose values are within some pre-set angle from each other.
 # or look in the difference vector and find N local minima.
 list_of_intersection_rings = []
-MINIMUM_ANGLE = 360/16 # this number is not set at all just eyeballing.
-MAX_INTERSECTION_DISTANCE = (4*OFFSET_DISTANCE)**2
+MINIMUM_ANGLE = 360/10 # this number is not set at all just eyeballing.
+MAX_INTERSECTION_DISTANCE = 2*OFFSET_DISTANCE
 
 for pt in common_points:
 
     intersection_df = es_intersects.locate_boundary(pt, list_of_all_points_in_dilated, MAX_INTERSECTION_DISTANCE)
-    
-    # while min(intersection_df['delta_angle_f'].values) < MINIMUM_ANGLE:
-    #     # identify points below nearest-angle threshold. Delete the furthest one.
-    #     intersection_df = es_intersects.drop_below_minima(intersection_df, MINIMUM_ANGLE)
-    #     intersection_df = es_intersects.get_delta_angles(intersection_df)
+    while min(intersection_df['delta_angle_f'].values) < MINIMUM_ANGLE:
+        # identify points below nearest-angle threshold. Delete the furthest one.
+        intersection_df = es_intersects.drop_below_minima(intersection_df, MINIMUM_ANGLE)
+        intersection_df = es_intersects.get_delta_angles(intersection_df)
 
-    if intersection_df.shape[0] > 2 :
-    # if there are more than 2 coordinates here (ie it's not a line)
+    if intersection_df.shape[0] <= 2 :
+        # plot it if it is a line, in green, so I can spot it.
+        plt.plot(intersection_df.boundary_pt_x.values, 
+                 intersection_df.boundary_pt_y.values, 'lime')
+    else :
+        # if there are more than 2 coordinates here (ie it's not a line)
         sorted_coords = intersection_df[['boundary_pt_x','boundary_pt_y']].values
         sorted_intersection_boundary_ring = LinearRing(sorted_coords)
         list_of_intersection_rings.append(sorted_intersection_boundary_ring)
         plot_xy(sorted_intersection_boundary_ring.coords, 'r')
-    else :
-        # idk... 
-        sorted_coords = intersection_df[['boundary_pt_x','boundary_pt_y']].values
 
 list_of_intersection_polys = []
 for ring in list_of_intersection_rings:
@@ -95,40 +96,55 @@ for ring in list_of_intersection_rings:
 
 intersection_polys_union = unary_union(list_of_intersection_polys)
 
+corrected_poly_unions = []
+dilated_coord_set = set([tuple(x) for x in list_of_all_points_in_dilated])
+
+for poly in intersection_polys_union :
+    # find points that are in common beetween each intersection and the boundary.
+    # make a new poly 
+
+    # THIS WORKS BUT HOLY HELL NEEDS TO BE CLEANED UP
+
+    coords = set(poly.exterior.coords)
+    coord_intersect = coords.intersection(dilated_coord_set)
+
+    centroid = np.mean(list(coord_intersect), axis=0)
+    df = pd.DataFrame(np.c_[list(coord_intersect), list(coord_intersect) - centroid], 
+                      columns = ['bp_x', 'bp_y', 'dx', 'dy'])
+    df = df.assign(angle = np.arctan2(df.dx, df.dy) * 180 / np.pi).sort_values(by=['angle'])
+
+    coords = list([tuple(x) for x in df[['bp_x','bp_y']].values])
+    corrected_poly_unions.append(Polygon(coords))
+
 list_of_all_intersection_boundaries = []
-for geom in intersection_polys_union.geoms:
-    segments = list(map(LineString, zip(geom.exterior.coords[:-1], geom.exterior.coords[1:])))
+for poly in corrected_poly_unions:
+    segments = list(map(LineString, zip(poly.exterior.coords[:-1], poly.exterior.coords[1:])))
     for segment in segments:
         list_of_all_intersection_boundaries.append(segment)
         # plot_xy(segment.coords, 'magenta')
 
-# Filter list_of_all_intersection_boundaries for those that cross lines_to_keep_merged
-# boundaries_to_keep = []
-# for boundary in list_of_all_intersection_boundaries:
-#     if lines_to_keep_merged.crosses(boundary):
-#         boundaries_to_keep.append(boundary)
-#         plot_xy(boundary.coords, 'lime')
-
 boundaries_to_keep = [b for b in list_of_all_intersection_boundaries if lines_to_keep_merged.crosses(b)]
+for b in boundaries_to_keep : plot_xy(b, 'magenta')
 
+# I think what I am trying to do here is to find the points in common with intersection lines that
+# cross a centerline
 boundary_segments = boundaries_to_keep.copy()
 boundary_segments.append(route_unions_dilated.boundary)
 boundary_limits = unary_union(boundary_segments)
 boundary_limits = linemerge(boundary_limits)
 
 split_boundaries = list(polygonize(boundary_limits))
-# for b in split_boundaries : es_gpx.plot_exterior(b, 'red')
+for b in split_boundaries : 
+    x,y = b.exterior.xy
+    plt.fill(x,y)
 
-# generate an array 
-# col1 = individual linestrings from the intersections
-# col2 = number of individual gpx paths that linestring crosses. 
-# allows me to do a lookup (find lines at bndry of 1 road, crossing#s == ?)
-# routes is where all the gpx paths are stored.
+# ESSENTIALLY DONE UP TO HERE... THE REGIONS ARE MOSTLY BEING SEPARATED OKAY, NEED TO ASSIGN
+# HEIGHTS AND ALSO REMOVE THE ONES THAT ARE 'INTERIORS' (WILL NOT BE COINCIDENT WITH ANY OF THE 
+# INTERSECTION BOUNDARIES).
 
 routes_linemerge = linemerge(routes)
 number_crossings = [es_intersects.gpx_crossings(routes_linemerge, boundary) for boundary in boundaries_to_keep]
 extents_crossings = np.c_[boundaries_to_keep, number_crossings]
-
 
 # next step... assign heights to each of split boundaries. Will need to determine if it is 
 # a simple line segment or an intersection... simple line segments will be coincident with
