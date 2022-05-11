@@ -173,9 +173,47 @@ for poly in polys_simple :
 
     heights = gpx_crossing_df.n_crossings.values[which_linestrings]
     if np.unique(heights).size == 1 :
-        # both edges of the poly have the same number of crossings, so it is good to assign.
+        # all edges of the poly (that cross a route) have the same number of crossings, 
+        # so it is good to assign.
         height_values.append(np.unique(heights)[0])
     else:
+        # if the two ends do not have the same value, i am going to have to split the shape in two. somehow.
+        # keep doing this successively and union the areas that both ends the same height and 
+        # that height is the same. 
+
+        # how I could do this is to look for the two nearest intersection centerpoints 
+        # (idk how to find them...). 
+        # Find the nearest points on the exterior of poly which are not part of the 
+        # boundary of the poly. should give 4 points, 2 on each outer boundary, 2 for each centerpoint.
+        # then test each one, split the poly and evaluate its endpoint crossing-count. Look
+        # for the one that makes the smallest area for the non-equal end-count. 
+
+
+
+        # THIS IS WHERE I AM CURRENTLY WORKING
+        # AND IT'S GONNA BE A BIIITCH.
+
+        # 1. find the poly exterior that is not in gpx_crossing_df
+        outer_edges = poly.exterior - unary_union(boundaries_to_keep)
+        first_points = []
+        last_points = []
+        second_points = []
+        # 2. for each of the (should be two) linestrings, get the 2nd and 2nd-last points.
+        for o in outer_edges.geoms :
+            plot_xy(o, 'lime')
+            first_points.append(o.coords[0])
+            second_points.append(o.coords[1])
+            second_points.append(o.coords[-2])
+            last_points.append(o.coords[-1])
+
+        plt.plot(*zip(*first_points),'om')
+        plt.plot(*zip(*last_points),'ok')
+        plt.plot(*zip(*second_points),'or')
+
+
+        
+
+
         height_values.append(100)
 
 poly_simple_df = poly_simple_df.assign(height = height_values)

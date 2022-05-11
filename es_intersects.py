@@ -66,47 +66,6 @@ def drop_below_minima(df, minima) :
 
     return df.drop(index=idx)
 
-# def sort_by_angle(coords, angles, vectors):
-#     """ self explanatory """
-
-#     coords_out = coords[np.argsort(angles), :]
-#     angles_out = np.sort(angles)
-#     vectors_out = vectors[np.argsort(angles)]
-#     magnitude_out = np.linalg.norm(vectors_out, axis = 1)
-
-#     return (coords_out, angles_out, vectors_out, magnitude_out)
-
-# def mask_for_small_angles(angles, deltas, min_angle):
-#     """ filters adjacent angles for ones that are within a close distance """
-
-#     reverse_angles = angles[::-1]
-#     reverse_deltas = np.diff(np.append(reverse_angles, reverse_angles[0]+360))
-
-#     mask_forward = abs(deltas) < min_angle
-#     mask_backward = abs(reverse_deltas[::-1]) < min_angle
-#     mask = np.logical_or(mask_forward, mask_backward)
-
-#     return mask
-
-
-# def delta_angles(angles):
-#     """ Gets derivative of the sorted angle vector to see if some angles are too close """
-
-#     sorted_angles = np.sort(angles)
-#     delta_angles_out = np.diff(np.append(sorted_angles, sorted_angles[0]+360))
-
-#     return delta_angles_out
-
-
-# def coordinate_deltas(coords, angles):
-#     """ Sorts and returns the coordinate points and their delta_angle to the next pt """
-
-#     coords_out = coords[np.argsort(angles), :]
-#     sorted_angles = np.sort(angles)
-#     delta_angles_out = np.diff(np.append(sorted_angles, sorted_angles[0]+360))
-
-#     return (coords_out, delta_angles_out)
-
 def gpx_crossings(gpx_paths, boundary_extent):
     """ How many times was the boundary of an intersection crossed by gpx paths? """
 
